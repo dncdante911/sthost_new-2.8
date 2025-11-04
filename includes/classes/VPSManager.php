@@ -1,7 +1,7 @@
 <?php
 /**
  * VPS Manager - главный класс управления VPS
- * Интегрирует LibVirt, FOSSBilling и базу данных сайта
+ * Интегрирует LibVirt, WHMCS и базу данных сайта
  * Файл: /includes/classes/VPSManager.php
  */
 
@@ -11,17 +11,17 @@ if (!defined('SECURE_ACCESS')) {
 }
 
 require_once __DIR__ . '/LibvirtManager.php';
-require_once __DIR__ . '/FossBillingAPI.php';
+require_once __DIR__ . '/WHMCSAPI.php';
 
 class VPSManager {
     private $db;
     private $libvirt;
-    private $fossbilling;
-    
+    private $billing;
+
     public function __construct($db_connection = null) {
         $this->db = $db_connection ?: DatabaseConnection::getSiteConnection();
         $this->libvirt = new LibvirtManager();
-        $this->fossbilling = new FossBillingAPI();
+        $this->billing = new WHMCSAPI();
     }
     
     /**
@@ -102,7 +102,7 @@ class VPSManager {
             $user_data = $user['user'];
             
             // Синхронизируем клиента с FOSSBilling
-            $client_sync = $this->fossbilling->syncClient($user_data);
+            $client_sync = $this->billing->syncClient($user_data);
             if (!$client_sync['success']) {
                 throw new Exception('Failed to sync client with billing');
             }
@@ -119,10 +119,10 @@ class VPSManager {
             $root_password = $config['root_password'] ?? $this->generatePassword();
             $vnc_password = $this->generatePassword(8);
             
-            // Создаем заказ в FOSSBilling
-            $fossbilling_order = $this->fossbilling->createVPSOrder([
+            // Создаем заказ в WHMCS
+            $billing_order = $this->billing->createVPSOrder([
                 'client_id' => $client_sync['client_id'],
-                'product_id' => $plan_data['fossbilling_product_id'] ?? null,
+                'product_id' => $plan_data['whmcs_product_id'] ?? null,
                 'period' => $config['period'] ?? 'monthly',
                 'hostname' => $hostname,
                 'os_template' => $config['os_template'],
@@ -134,7 +134,7 @@ class VPSManager {
             $vps_data = [
                 'user_id' => $user_id,
                 'plan_id' => $plan_id,
-                'fossbilling_order_id' => $fossbilling_order['data']['id'] ?? null,
+                'whmcs_service_id' => $billing_order['data']['serviceid'] ?? null,
                 'hostname' => $hostname,
                 'libvirt_name' => $libvirt_name,
                 'ip_address' => $ip_result['ip_address'],
@@ -167,7 +167,7 @@ class VPSManager {
             return [
                 'success' => true,
                 'vps_id' => $vps_id,
-                'order_id' => $fossbilling_order['data']['id'] ?? null,
+                'order_id' => $billing_order['data']['serviceid'] ?? null,
                 'hostname' => $hostname,
                 'ip_address' => $ip_result['ip_address'],
                 'status' => 'pending'
@@ -222,8 +222,8 @@ class VPSManager {
                 $this->updateVPSVNC($vps_id, $creation_result['vnc_port'] ?? null);
                 
                 // Активируем заказ в FOSSBilling
-                if ($vps_data['fossbilling_order_id']) {
-                    $this->fossbilling->activateOrder($vps_data['fossbilling_order_id']);
+                if ($vps_data['whmcs_service_id']) {
+                    $this->billing->activateOrder($vps_data['whmcs_service_id']);
                 }
                 
                 // Логируем действие
@@ -508,8 +508,8 @@ class VPSManager {
                 $stmt->execute([$reason, $vps_id]);
                 
                 // Приостанавливаем заказ в FOSSBilling
-                if ($vps_data['fossbilling_order_id']) {
-                    $this->fossbilling->suspendOrder($vps_data['fossbilling_order_id'], $reason);
+                if ($vps_data['whmcs_service_id']) {
+                    $this->billing->suspendOrder($vps_data['whmcs_service_id'], $reason);
                 }
                 
                 // Логируем действие
@@ -550,8 +550,8 @@ class VPSManager {
                 $stmt->execute([$vps_id]);
                 
                 // Возобновляем заказ в FOSSBilling
-                if ($vps_data['fossbilling_order_id']) {
-                    $this->fossbilling->unsuspendOrder($vps_data['fossbilling_order_id']);
+                if ($vps_data['whmcs_service_id']) {
+                    $this->billing->unsuspendOrder($vps_data['whmcs_service_id']);
                 }
                 
                 // Логируем действие
@@ -665,18 +665,18 @@ class VPSManager {
     private function createVPSRecord($vps_data) {
         try {
             $sql = "INSERT INTO vps_instances (
-                user_id, plan_id, fossbilling_order_id, hostname, libvirt_name,
+                user_id, plan_id, whmcs_service_id, hostname, libvirt_name,
                 ip_address, ip_gateway, ip_netmask, dns_servers, os_template,
-                root_password, vnc_password, status, cpu_cores, ram_mb, 
+                root_password, vnc_password, status, cpu_cores, ram_mb,
                 disk_gb, bandwidth_gb
             ) VALUES (
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             )";
-            
+
             $stmt = $this->db->prepare($sql);
             $stmt->execute([
-                $vps_data['user_id'], $vps_data['plan_id'], 
-                $vps_data['fossbilling_order_id'], $vps_data['hostname'], 
+                $vps_data['user_id'], $vps_data['plan_id'],
+                $vps_data['whmcs_service_id'], $vps_data['hostname'], 
                 $vps_data['libvirt_name'], $vps_data['ip_address'], 
                 $vps_data['ip_gateway'], $vps_data['ip_netmask'], 
                 $vps_data['dns_servers'], $vps_data['os_template'], 
@@ -1012,8 +1012,8 @@ class VPSManager {
             $stmt->execute([$vps_id]);
             
             // Отменяем заказ в FOSSBilling
-            if ($vps_data['fossbilling_order_id']) {
-                $this->fossbilling->cancelOrder($vps_data['fossbilling_order_id']);
+            if ($vps_data['whmcs_service_id']) {
+                $this->billing->cancelOrder($vps_data['whmcs_service_id']);
             }
             
             // Логируем действие
