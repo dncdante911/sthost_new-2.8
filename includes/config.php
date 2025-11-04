@@ -19,10 +19,15 @@ $dbname_site = 'sthostsitedb';
 $db_userconnect_site = 'sthostdb';
 $db_passwd_site = '3344Frz@q0607Dm$157';
 
-// Конфігурація підключення до БД FOSSbill
-$dbname_fossbill = 'admin_fossbill';
-$db_userconnect_fossbill = 'admin_fossbill';
-$db_passwd_fossbill = '0607Dm$157';
+// Конфігурація підключення до БД WHMCS
+$dbname_whmcs = 'whmcs_sthost';
+$db_userconnect_whmcs = 'whmcs_sthost';
+$db_passwd_whmcs = '3344Frz@q0607';
+
+// Старая конфигурация FOSSBilling (DEPRECATED - больше не используется)
+// $dbname_fossbill = 'admin_fossbill';
+// $db_userconnect_fossbill = 'admin_fossbill';
+// $db_passwd_fossbill = '0607Dm$157';
 
 // Настройки безопасности
 define('CSRF_TOKEN_NAME', 'csrf_token');
@@ -92,9 +97,22 @@ define('LIBVIRT_URI', 'qemu+ssh://dncdante@localhost/system');
 define('VPS_TEMPLATES_PATH', '/var/lib/libvirt/images/templates/');
 define('VPS_IMAGES_PATH', '/var/lib/libvirt/images/');
 
-// FOSSBilling настройки
-define('FOSSBILLING_URL', 'https://bill.sthost.pro');
-define('FOSSBILLING_API_TOKEN', 'YPo9tN0V8Ih0pdHDAKJfBuyNA08CnaHN');
+// WHMCS настройки
+define('WHMCS_URL', 'https://billing.sthost.pro'); // URL вашего WHMCS (измените на актуальный!)
+define('WHMCS_API_URL', 'https://billing.sthost.pro/includes/api.php'); // URL API WHMCS
+define('WHMCS_API_IDENTIFIER', 'YOUR_API_IDENTIFIER_HERE'); // API Identifier из WHMCS Admin
+define('WHMCS_API_SECRET', 'YOUR_API_SECRET_HERE'); // API Secret из WHMCS Admin
+
+// ВАЖНО: Создайте API Credentials в WHMCS:
+// 1. Зайдите в WHMCS Admin Panel
+// 2. Setup > Staff Management > Manage API Credentials
+// 3. Создайте новые credentials с Admin правами
+// 4. Скопируйте Identifier и Secret сюда
+// 5. Добавьте IP вашего сервера в Allowed IP Addresses
+
+// Старые настройки FOSSBilling (DEPRECATED - больше не используются)
+// define('FOSSBILLING_URL', 'https://bill.sthost.pro');
+// define('FOSSBILLING_API_TOKEN', 'YPo9tN0V8Ih0pdHDAKJfBuyNA08CnaHN');
 
 // Настройки почты
 define('SMTP_HOST', 'mail.sthost.pro');

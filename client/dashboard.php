@@ -25,7 +25,7 @@ require_once $_SERVER['DOCUMENT_ROOT'] . '/includes/db_connect.php';
 $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['user_name'];
 $user_email = $_SESSION['user_email'];
-$fossbilling_client_id = $_SESSION['fossbilling_client_id'];
+$whmcs_client_id = $_SESSION['whmcs_client_id'] ?? null;
 
 // Получаем информацию о пользователе
 $user_info = DatabaseConnection::fetchOne(
@@ -37,13 +37,13 @@ $user_info = DatabaseConnection::fetchOne(
 // Это решает проблему HTTP 500, так как предыдущие запросы использовали только статические методы.
 $pdo = DatabaseConnection::getSiteConnection();
 
-// Подключаем VPS Manager и FOSSBilling API
+// Подключаем VPS Manager и WHMCS API
 require_once $_SERVER['DOCUMENT_ROOT'] . '/includes/classes/VPSManager.php';
-require_once $_SERVER['DOCUMENT_ROOT'] . '/includes/classes/FossBillingAPI.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/includes/classes/WHMCSAPI.php';
 
 // Инициализируем классы
 $vpsManager = new VPSManager();
-$fossBillingAPI = new FossBillingAPI();
+$whmcsAPI = new WHMCSAPI();
 
 // ============================================
 // ПОЛУЧЕНИЕ СТАТИСТИКИ УСЛУГ
@@ -79,35 +79,57 @@ try {
     $vps_list = [];
 }
 
-// Получаем данные из FOSSBilling
+// Получаем данные из WHMCS
 try {
-    if ($fossbilling_client_id) {
+    if ($whmcs_client_id) {
         // Баланс клиента
-        $balance = $fossBillingAPI->getClientBalance($fossbilling_client_id);
-        if ($balance['success']) {
-            $services_stats['balance'] = $balance['balance'];
+        $balance_result = $whmcsAPI->getClientBalance($whmcs_client_id);
+        if ($balance_result['success']) {
+            $services_stats['balance'] = $balance_result['balance'];
         }
-        
-        // Счета клиента
-        $invoices = $fossBillingAPI->getClientInvoices($fossbilling_client_id, ['status' => 'unpaid']);
-        if ($invoices['success']) {
-            $services_stats['pending_invoices'] = count($invoices['invoices']);
+
+        // Неоплаченные счета клиента
+        $invoices_result = $whmcsAPI->getClientInvoices($whmcs_client_id, 'unpaid');
+        if ($invoices_result['success'] && isset($invoices_result['data']['list'])) {
+            $services_stats['pending_invoices'] = count($invoices_result['data']['list']);
         }
-        
-        // Домены клиента
-        $domains = $fossBillingAPI->getClientDomains($fossbilling_client_id);
-        if ($domains['success']) {
-            $services_stats['domains'] = count($domains['domains']);
+
+        // Получаем все продукты/услуги клиента
+        $products_result = $whmcsAPI->getClientProducts($whmcs_client_id);
+        if ($products_result['success'] && isset($products_result['data']['list'])) {
+            $all_products = $products_result['data']['list'];
+
+            // Подсчитываем домены и хостинг
+            foreach ($all_products as $product) {
+                $product_name = strtolower($product['name'] ?? $product['product'] ?? '');
+                $group_name = strtolower($product['groupname'] ?? '');
+
+                if (strpos($product_name, 'domain') !== false || strpos($group_name, 'domain') !== false) {
+                    $services_stats['domains']++;
+                } elseif (strpos($product_name, 'hosting') !== false || strpos($product_name, 'host') !== false ||
+                          strpos($group_name, 'hosting') !== false || strpos($group_name, 'host') !== false) {
+                    $services_stats['hosting']++;
+                }
+
+                // Подсчитываем активные услуги
+                if (isset($product['status']) && $product['status'] === 'Active') {
+                    $services_stats['active_services']++;
+                }
+            }
         }
-        
-        // Общая потрачена сумма
-        $total_spent = $fossBillingAPI->getClientTotalSpent($fossbilling_client_id);
-        if ($total_spent['success']) {
-            $services_stats['total_spent'] = $total_spent['amount'];
+
+        // Получаем общую потраченную сумму через оплаченные счета
+        $paid_invoices = $whmcsAPI->getClientInvoices($whmcs_client_id, 'paid');
+        if ($paid_invoices['success'] && isset($paid_invoices['data']['list'])) {
+            $total_spent = 0;
+            foreach ($paid_invoices['data']['list'] as $invoice) {
+                $total_spent += floatval($invoice['total'] ?? 0);
+            }
+            $services_stats['total_spent'] = $total_spent;
         }
     }
 } catch (Exception $e) {
-    error_log("FOSSBilling API error: " . $e->getMessage());
+    error_log("WHMCS API error: " . $e->getMessage());
 }
 
 // >>> ВОССТАНОВЛЕННЫЙ БЛОК: Получаем последние операции VPS
