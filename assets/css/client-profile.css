@@ -1,0 +1,158 @@
+/* ============================================
+   /assets/css/pages/client-profile.css
+   Стили для страницы профиля (client/profile.php)
+   ============================================ */
+
+:root {
+    --primary-color: #007bff;
+    --secondary-color: #6c757d;
+    --success-color: #28a745;
+    --card-bg: #ffffff;
+    --bg-main: #f8f9fa;
+    --text-color: #212529;
+    --border-color: #e9ecef;
+}
+
+body.profile-page {
+    background-color: var(--bg-main);
+    padding-top: 30px;
+    padding-bottom: 50px;
+}
+
+/* --- Главный контейнер профиля --- */
+.profile-header {
+    margin-bottom: 25px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 15px;
+}
+
+.profile-title {
+    font-weight: 700;
+    font-size: 2rem;
+}
+
+/* --- Основная карточка (для форм) --- */
+.profile-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    margin-bottom: 25px;
+}
+
+.card-header {
+    background-color: #f7f7f7;
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.card-header .card-title {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+.card-body {
+    padding: 25px 20px;
+}
+
+/* --- Раздел информации о пользователе (слева) --- */
+.user-info-card {
+    text-align: center;
+}
+
+.avatar-container {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 15px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid var(--primary-color);
+    box-shadow: 0 0 0 5px rgba(0, 123, 255, 0.2);
+}
+
+.avatar-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.user-name {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.user-email {
+    color: var(--secondary-color);
+    font-size: 0.95rem;
+    display: block;
+    margin-bottom: 15px;
+}
+
+.info-item {
+    padding: 8px 0;
+    border-top: 1px dashed var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+}
+
+.info-label {
+    font-weight: 600;
+    color: #495057;
+}
+
+.info-value {
+    color: var(--text-color);
+}
+
+.badge-verified {
+    background-color: var(--success-color);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+}
+
+/* --- Формы и кнопки --- */
+.form-label {
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 5px;
+}
+
+.form-control:focus {
+    border-color: rgba(0, 123, 255, 0.5);
+    box-shadow: 0 0 0 0.25rem rgba(0, 123, 255, 0.25);
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    transition: background-color 0.2s;
+}
+
+.btn-secondary {
+    background-color: var(--secondary-color);
+    border-color: var(--secondary-color);
+}
+
+/* --- Секция безопасности (при условии табов) --- */
+.security-status-badge {
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.status-enabled { 
+    background-color: #d4edda; 
+    color: var(--success-color); 
+}
+
+.status-disabled { 
+    background-color: #f8d7da; 
+    color: var(--secondary-color);
+}
