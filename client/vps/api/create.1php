@@ -1,0 +1,134 @@
+<?php
+define('SECURE_ACCESS', true);
+
+// ВКЛЮЧАЕМ ВЫВОД ОШИБОК ВРЕМЕННО ДЛЯ ОТЛАДКИ
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+ini_set('log_errors', 1);
+
+require_once $_SERVER['DOCUMENT_ROOT'] . '/includes/config.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/includes/db_connect.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/includes/classes/VPSManager.php';
+
+header('Content-Type: application/json');
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+if (!isset($_SESSION['is_logged_in']) || !$_SESSION['is_logged_in']) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'message' => 'Требуется авторизация']);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['success' => false, 'message' => 'Метод не поддерживается']);
+    exit;
+}
+
+$user_id = $_SESSION['user_id'];
+
+try {
+    $input = file_get_contents('php://input');
+    $data = json_decode($input, true);
+
+    if (!$data) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Некорректные данные запроса']);
+        exit;
+    }
+
+    $required_fields = ['plan_id', 'os_template_id', 'hostname'];
+    foreach ($required_fields as $field) {
+        if (!isset($data[$field])) {
+            echo json_encode(['success' => false, 'message' => "Отсутствует поле: $field"]);
+            exit;
+        }
+    }
+
+    $planId = (int)$data['plan_id'];
+    $osTemplateId = (int)$data['os_template_id'];
+    $hostname = trim($data['hostname']);
+    
+    if (!preg_match('/^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]$/', $hostname)) {
+        echo json_encode(['success' => false, 'message' => 'Некорректное имя хоста']);
+        exit;
+    }
+
+    $pdo = DatabaseConnection::getSiteConnection();
+
+    // Проверяем план
+    $stmt = $pdo->prepare("SELECT * FROM vps_plans WHERE id = ? AND is_active = 1");
+    $stmt->execute([$planId]);
+    $plan = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$plan) {
+        echo json_encode(['success' => false, 'message' => 'План не найден']);
+        exit;
+    }
+
+    // Проверяем ОС
+    $stmt = $pdo->prepare("SELECT * FROM vps_os_templates WHERE id = ? AND is_active = 1");
+    $stmt->execute([$osTemplateId]);
+    $template = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$template) {
+        echo json_encode(['success' => false, 'message' => 'ОС шаблон не найден']);
+        exit;
+    }
+
+    $vpsManager = new VPSManager($pdo);
+
+    $orderConfig = [
+        'hostname' => $hostname,
+        'os_template' => $template['name'],
+        'period' => 'monthly'
+    ];
+    
+    if (!empty($data['root_password'])) {
+        $orderConfig['root_password'] = $data['root_password'];
+    }
+
+    // ===== ГЛАВНЫЙ ВЫЗОВ =====
+    $result = $vpsManager->createVPSOrder($user_id, $planId, $orderConfig);
+    // =========================
+
+    // Логируем результат для отладки
+    error_log("VPS Creation Result: " . json_encode($result));
+
+    if ($result['success']) {
+        // Успех
+        $stmt = $pdo->prepare("INSERT INTO security_logs (ip_address, user_id, action, details, severity) VALUES (?, ?, 'vps_created', ?, 'low')");
+        $stmt->execute([
+            $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+            $user_id,
+            json_encode(['vps_id' => $result['vps_id'], 'hostname' => $hostname])
+        ]);
+        
+        unset($result['root_password']);
+        echo json_encode($result);
+    } else {
+        // Ошибка - ВЫВОДИМ ЧТО ИМЕННО
+        echo json_encode([
+            'success' => false,
+            'message' => 'Ошибка создания VPS',
+            'error' => $result['error'] ?? 'Unknown error',
+            'details' => $result
+        ]);
+    }
+
+} catch (Exception $e) {
+    error_log('VPS API Error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Внутренняя ошибка',
+        'error' => $e->getMessage(),
+        'file' => $e->getFile(),
+        'line' => $e->getLine()
+    ]);
+}
+?>
