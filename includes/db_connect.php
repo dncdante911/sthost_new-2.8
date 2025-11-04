@@ -6,7 +6,7 @@ if (!defined('SECURE_ACCESS')) {
 
 class DatabaseConnection {
     private static $site_connection = null;
-    private static $fossbilling_connection = null;
+    private static $whmcs_connection = null;
     
     // Подключение к основной БД сайта
     public static function getSiteConnection() {
@@ -37,40 +37,40 @@ class DatabaseConnection {
         return self::$site_connection;
     }
     
-    // Подключение к БД FOSSBilling
-    public static function getFossBillingConnection() {
-        if (self::$fossbilling_connection === null) {
+    // Подключение к БД WHMCS
+    public static function getWHMCSConnection() {
+        if (self::$whmcs_connection === null) {
             try {
-                global $host, $dbname_fossbill, $db_userconnect_fossbill, $db_passwd_fossbill;
-                
-                $dsn = "mysql:host={$host};dbname={$dbname_fossbill};charset=utf8mb4";
+                global $host, $dbname_whmcs, $db_userconnect_whmcs, $db_passwd_whmcs;
+
+                $dsn = "mysql:host={$host};dbname={$dbname_whmcs};charset=utf8mb4";
                 $options = [
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                     PDO::ATTR_EMULATE_PREPARES => false,
                     PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
                 ];
-                
-                self::$fossbilling_connection = new PDO($dsn, $db_userconnect_fossbill, $db_passwd_fossbill, $options);
-                
+
+                self::$whmcs_connection = new PDO($dsn, $db_userconnect_whmcs, $db_passwd_whmcs, $options);
+
                 // Логируем успешное подключение
-                self::logSecurityEvent('database_connect', 'Успешное подключение к БД FOSSBilling', 'low');
-                
+                self::logSecurityEvent('database_connect', 'Успешное подключение к БД WHMCS', 'low');
+
             } catch (PDOException $e) {
                 // Логируем ошибку подключения
-                self::logSecurityEvent('database_error', 'Ошибка подключения к БД FOSSBilling: ' . $e->getMessage(), 'critical');
-                throw new Exception('FOSSBilling database connection failed');
+                self::logSecurityEvent('database_error', 'Ошибка подключения к БД WHMCS: ' . $e->getMessage(), 'critical');
+                throw new Exception('WHMCS database connection failed');
             }
         }
-        
-        return self::$fossbilling_connection;
+
+        return self::$whmcs_connection;
     }
     
     // Безопасное выполнение запросов с подготовленными выражениями
     public static function executeQuery($sql, $params = [], $connection_type = 'site') {
         try {
-            $pdo = ($connection_type === 'fossbilling') ? 
-                   self::getFossBillingConnection() : 
+            $pdo = ($connection_type === 'whmcs') ?
+                   self::getWHMCSConnection() :
                    self::getSiteConnection();
             
             $stmt = $pdo->prepare($sql);
@@ -101,8 +101,8 @@ class DatabaseConnection {
     // Вставка записи с возвратом ID
     public static function insert($sql, $params = [], $connection_type = 'site') {
         $stmt = self::executeQuery($sql, $params, $connection_type);
-        $pdo = ($connection_type === 'fossbilling') ? 
-               self::getFossBillingConnection() : 
+        $pdo = ($connection_type === 'whmcs') ?
+               self::getWHMCSConnection() :
                self::getSiteConnection();
         return $pdo->lastInsertId();
     }
@@ -238,8 +238,8 @@ function db_site() {
     return DatabaseConnection::getSiteConnection();
 }
 
-function db_fossbilling() {
-    return DatabaseConnection::getFossBillingConnection();
+function db_whmcs() {
+    return DatabaseConnection::getWHMCSConnection();
 }
 
 function db_query($sql, $params = [], $connection = 'site') {
