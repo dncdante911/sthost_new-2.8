@@ -1,6 +1,6 @@
 <?php
 /**
- * API для отримання останніх послуг з FossBilling
+ * API для получения последних услуг из WHMCS
  * Файл: /api/billing/get_recent_services.php
  */
 
@@ -8,80 +8,59 @@ define('SECURE_ACCESS', true);
 require_once $_SERVER['DOCUMENT_ROOT'] . '/includes/config.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/includes/db_connect.php';
 require_once $_SERVER['DOCUMENT_ROOT'] . '/includes/auth/check_auth.php';
+require_once $_SERVER['DOCUMENT_ROOT'] . '/includes/classes/WHMCSAPI.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-// Перевірка авторізації
+// Проверка авторизации
 if (!isLoggedIn()) {
     echo json_encode(['success' => false, 'message' => 'Не авторизовано']);
     exit;
 }
 
-$fossbilling_client_id = getFossBillingClientId();
+$whmcs_client_id = getWHMCSClientId();
 
 try {
-    $api_key = 'YPo9tN0V8Ih0pdHDAKJfBuyNA08CnaHN';
+    $whmcs = new WHMCSAPI();
     $services = [];
-    
-    if ($fossbilling_client_id) {
-        $api_url = 'https://bill.sthost.pro/api/admin/order/get_list';
-        $params = [
-            'client_id' => $fossbilling_client_id
-        ];
-        
-        $url = $api_url . '?key=' . $api_key;
-        
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json'
-        ]);
-        
-        $response = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        
-        if ($http_code === 200 && $response) {
-            $data = json_decode($response, true);
-            
-            if (isset($data['result']['list']) && is_array($data['result']['list'])) {
-                // Беремо останні 5 послуг
-                $orders = array_slice($data['result']['list'], 0, 5);
-                
-                foreach ($orders as $order) {
-                    $expires_at = 'Безстроково';
-                    if (isset($order['expires_at']) && $order['expires_at']) {
-                        $expires_at = date('d.m.Y', strtotime($order['expires_at']));
-                    }
-                    
-                    $status = $order['status'] ?? 'pending';
-                    
-                    $services[] = [
-                        'id' => $order['id'] ?? 0,
-                        'name' => $order['title'] ?? 'Послуга',
-                        'status' => $status,
-                        'expires_at' => $expires_at,
-                        'price' => floatval($order['price'] ?? 0)
-                    ];
+
+    if ($whmcs_client_id) {
+        // Получаем список продуктов/услуг клиента
+        $result = $whmcs->getClientProducts($whmcs_client_id);
+
+        if ($result['success'] && isset($result['data']['list'])) {
+            // Берем последние 5 услуг
+            $products = array_slice($result['data']['list'], 0, 5);
+
+            foreach ($products as $product) {
+                $expires_at = 'Бессрочно';
+                if (isset($product['nextduedate']) && $product['nextduedate'] && $product['nextduedate'] != '0000-00-00') {
+                    $expires_at = date('d.m.Y', strtotime($product['nextduedate']));
                 }
+
+                $status = $product['status'] ?? 'Pending';
+
+                $services[] = [
+                    'id' => $product['id'] ?? 0,
+                    'name' => $product['name'] ?? ($product['product'] ?? 'Услуга'),
+                    'status' => $status,
+                    'expires_at' => $expires_at,
+                    'price' => floatval($product['amount'] ?? 0)
+                ];
             }
         }
     }
-    
+
     echo json_encode([
         'success' => true,
         'services' => $services
     ]);
-    
+
 } catch (Exception $e) {
     error_log('Recent services API error: ' . $e->getMessage());
     echo json_encode([
         'success' => false,
-        'message' => 'Помилка отримання даних',
+        'message' => 'Ошибка получения данных',
         'services' => []
     ]);
 }

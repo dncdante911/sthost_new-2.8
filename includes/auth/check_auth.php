@@ -43,10 +43,18 @@ function getUserName() {
 }
 
 /**
- * Отримання FossBilling client ID
+ * Получение WHMCS client ID
+ */
+function getWHMCSClientId() {
+    return $_SESSION['whmcs_client_id'] ?? null;
+}
+
+/**
+ * Устаревшая функция для обратной совместимости
+ * @deprecated Используйте getWHMCSClientId()
  */
 function getFossBillingClientId() {
-    return $_SESSION['fossbilling_client_id'] ?? null;
+    return getWHMCSClientId();
 }
 
 /**
@@ -83,13 +91,13 @@ function checkRememberToken() {
         
         // Перевіряємо токен у БД
         $result = DatabaseConnection::fetchOne(
-            "SELECT rt.user_id, u.email, u.full_name, u.language, u.fossbilling_client_id, u.is_active 
-             FROM remember_tokens rt 
-             JOIN users u ON rt.user_id = u.id 
+            "SELECT rt.user_id, u.email, u.full_name, u.language, u.whmcs_client_id, u.is_active
+             FROM remember_tokens rt
+             JOIN users u ON rt.user_id = u.id
              WHERE rt.token = ? AND rt.expires_at > NOW()",
             [$hashed_token]
         );
-        
+
         if ($result && $result['is_active']) {
             // Відновлюємо сесію
             $_SESSION['user_id'] = $result['user_id'];
@@ -97,7 +105,7 @@ function checkRememberToken() {
             $_SESSION['user_name'] = $result['full_name'];
             $_SESSION['user_language'] = $result['language'];
             $_SESSION['is_logged_in'] = true;
-            $_SESSION['fossbilling_client_id'] = $result['fossbilling_client_id'];
+            $_SESSION['whmcs_client_id'] = $result['whmcs_client_id'];
             
             // Оновлюємо час останнього входу
             DatabaseConnection::execute(
